@@ -106,7 +106,7 @@ flood_flag=0 (정상): 42,440,891건 (95.2%)
 | `month_sin/cos` | 월 주기 인코딩 |
 | `season` | 계절 (0=봄, 1=여름, 2=가을, 3=겨울) |
 | `is_weekend` | 주말 여부 |
-| `rainfall_norm` | 최근접 AWS 시간당 강수량 (mm/hr 정규화) |
+| `rainfall_norm` | 최근접 AWS 시간당 강수량 (mm/hr 정규화, **현재 placeholder**) |
 
 **도로노면 노드 피처 (10-dim)**
 | 피처 | 설명 |
@@ -130,10 +130,6 @@ flood_flag=0 (정상): 42,440,891건 (95.2%)
 
 엣지 가중치: Gaussian 커널  w = exp(-d / σ),  σ = 300m,  임계값 = 0.1
 ```
-
-<div align="center">
-<img src="docs/graph_structure.png" width="600" alt="그래프 구조 시각화"/>
-</div>
 
 ---
 
@@ -179,18 +175,6 @@ flood_flag=0 (정상): 42,440,891건 (95.2%)
 | DCRNN | 0.827 | 0.0036 | **0.877** | 정상 | — |
 
 > \* GC-GRU, Hetero-GAT-GRU는 `POS_WEIGHT=60`으로 분류 붕괴 해소
-
-### 학습 곡선
-
-<div align="center">
-<img src="docs/learning_curves.png" width="900" alt="모델별 학습 곡선"/>
-</div>
-
-### 레이더 차트
-
-<div align="center">
-<img src="docs/radar_chart.png" width="500" alt="Test 성능 레이더 차트"/>
-</div>
 
 ### 핵심 발견
 
@@ -291,7 +275,6 @@ CFG = {
 ```
 city_flood/
 ├── README.md
-├── CLAUDE.md                          # AI 작업 가이드 (개발 이력·버그 해결책)
 ├── EVALUATION_FRAMEWORK.md            # 성능 평가 지표 체계
 ├── PROJECT_ANALYSIS.md                # 전처리 파이프라인 상세 분석
 │
@@ -299,21 +282,20 @@ city_flood/
 ├── preprocessing.ipynb                # 원천 데이터 전처리 (Step 01~09)
 ├── preprocessing_rain_join.ipynb      # 강수량 피처 조인
 ├── preprocessing_rain.ipynb           # 강수량 데이터 정제
-├── download_kma_file.py               # 기상청 AWS 데이터 다운로드
 │
-└── dataset/
-    └── processed/
-        └── features/
-            ├── gnn_config.json        # 그래프 설정, 클래스 가중치
-            ├── adjacency_expanded.parquet
-            ├── sewer_sewer_edges.parquet
-            ├── sewer_node_index.parquet
-            ├── road_node_index.parquet
-            └── overlap/
-                ├── train/             # sewer_train.parquet, road_train.parquet
-                ├── val/               # sewer_val.parquet, road_val.parquet
-                ├── test/              # sewer_test.parquet, road_test.parquet
-                └── tensor_cache/      # 학습용 텐서 캐시 (.pt)
+├── dataset/features/
+│   ├── gnn_config.json                # 그래프 설정, 클래스 가중치
+│   ├── adjacency_expanded.parquet     # sewer→road 엣지 (383개)
+│   ├── sewer_sewer_edges.parquet      # sewer→sewer 엣지 (1,192개)
+│   ├── sewer_node_index.parquet
+│   ├── road_node_index.parquet
+│   └── overlap/
+│       ├── train/                     # sewer_train.parquet, road_train.parquet
+│       ├── val/                       # sewer_val.parquet, road_val.parquet
+│       └── test/                      # sewer_test.parquet, road_test.parquet
+│
+└── dataset/processed/
+    └── tensor_cache/                  # 학습용 텐서 캐시 (.pt, gitignored)
 ```
 
 ---
