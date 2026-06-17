@@ -4,6 +4,49 @@
 
 > 주의: 이 문서는 전처리 코드와 설정 기준으로 작성했으며, parquet/csv 내부 데이터 내용은 열람하지 않았다.
 
+## 0. 실행 순서
+
+### A. 전체 파이프라인 (처음부터)
+
+```text
+1. preprocessing.ipynb  — Step 01~10
+   원본 변환 → 스키마 통일 → 이상치/보간 → 제원표 조인 → 교차상관
+   → 파생 피처 → 인접행렬 → 공통기간 분리 → 정규화 → train/val/test 분리
+2. preprocessing_rain.ipynb
+   서울시 1분 강수량 → 관측소별 10분 합산 → rainfall_norm
+3. preprocessing_rain_join.ipynb
+   하수관로 센서별 최근접 관측소 매핑
+   → sewer_normalized.parquet 및 train/val/test split에 rainfall_norm 추가
+4. preprocessing.ipynb  — Step 11
+   gnn_config.json 생성 (피처 목록, 그래프 정보, split 기간, 클래스 가중치)
+5. model_comparison.ipynb  — 맨 위 셀부터 순차 실행
+```
+
+> 의존성: 강우 조인(3)은 정규화/분리(Step 09~10) 이후에만 가능하다.
+> `preprocessing_rain`(2)은 관측소 데이터만 쓰므로 1과 병행 가능하다.
+
+### B. 피처 변경(season 제거 / flood_stage 입력 제외)만 반영 — 재전처리 불필요
+
+`gnn_config.json`은 이미 갱신되어 있고, `load_tensor()`는 config의 `feat_cols`만
+읽으므로 parquet을 다시 만들지 않아도 모델만 재실행하면 된다.
+(season은 읽지 않고, flood_stage는 입력에서 제외됨)
+
+```text
+1. (필요시) 텐서 캐시 무효화
+   rm dataset/processed/tensor_cache/*.pt
+   ※ feat_cols 변경으로 캐시 키가 달라져 a010 재실행 시 자동 재생성됨
+2. VSCode: 두 노트북 탭 우클릭 → "Revert File"  (외부 편집 반영)
+3. model_comparison.ipynb — 커널 재시작 후 a005부터 순차 실행
+   a005(TF32) → a006(CFG, F_SEWER=9 / F_ROAD=8 자동) → a008(그래프)
+   → a010(텐서·새 캐시) → a012(Dataset/Loader) → a015~a023(모델)
+   → a025(metrics) → a026(run_experiment) → a028(학습) → a030~(결과)
+```
+
+### C. season을 parquet에서도 물리적으로 제거 (선택)
+
+모델 동작에는 영향이 없지만 parquet 컬럼까지 없애려면
+`preprocessing.ipynb` Step 06~11을 재실행한다 (B의 캐시 무효화 포함).
+
 ## 1. 현재 전처리 기준
 
 ### 1-1. 기준 산출물 경로
@@ -42,10 +85,10 @@ Test : 2025-06-01 ~ 2025-08-31
 ```text
 해상도: 10분
 T_in : 6 step = 과거 60분
-T_out: 실험 설정에 따라 3 step 또는 18 step
+T_out: 18 step = 미래 180분
 ```
 
-`gnn_config.json`에는 `output_steps=3` 기준이 남아 있고, 모델 실험 노트북에는 `T_OUT=18` 설정 흔적이 있으므로 실험 기준을 하나로 통일해야 한다.
+`gnn_config.json`의 `output_steps`와 모델 노트북의 `T_OUT`은 **18로 통일**되었다.
 
 ## 2. 전처리 과정
 
@@ -106,7 +149,7 @@ level
 
 ### 2-8. 피처 생성
 
-하수관로 피처:
+하수관로 피처 (F_SEWER=9):
 
 ```text
 level_norm
@@ -116,25 +159,26 @@ hour_sin
 hour_cos
 month_sin
 month_cos
-season
 is_weekend
 rainfall_norm
 ```
 
-도로노면 피처:
+도로노면 입력 피처 (F_ROAD=8):
 
 ```text
 level_norm
 level_diff_norm
 flood_flag
-flood_stage
 hour_sin
 hour_cos
 month_sin
 month_cos
-season
 is_weekend
 ```
+
+> `season`은 `month`와 중복되어 sewer/road 모두에서 제거했다.
+> `flood_stage`는 parquet 컬럼과 멀티클래스 타겟(`road_multiclass`)으로 보존하되,
+> `level_norm`/`flood_flag`와 중복인 **입력 피처에서는 제외**했다.
 
 ### 2-9. 정규화
 
@@ -185,6 +229,9 @@ dataset/features/overlap/sewer_normalized.parquet
 3. 강우 조인 후 sewer_normalized.parquet도 재구성
 4. parquet 내부 내용을 출력하는 검증 셀 제거
 5. 전처리 노트북의 과거 실행 출력 제거
+6. season 피처 제거 (month와 중복) — sewer/road 모두
+7. flood_stage 입력 피처에서 제외 (parquet·멀티클래스 타겟은 보존)
+8. gnn_config.json output_steps를 18로 통일 (T_OUT과 일치)
 ```
 
 ## 4. 추가 개선사항
@@ -324,11 +371,11 @@ rain_lag_30min      # 30분 전 강우 (새로 추가)
 |------|------|------|------|
 | 학습 시작일 | 2022-01 | 2024-01 | ⚠️ 불일치 |
 | 학습 종료일 | 2025-09 | 2025-08-31 | ⚠️ 불일치 |
-| T_out | 미정 | 3 또는 18 | ⚠️ 불일치 |
+| T_out | 미정 | 18 | ✅ output_steps=18 통일 |
 
 **권장 조치:**
 1. 실제 사용 기간을 확인하고 문서 통일
-2. `gnn_config.json`의 `output_steps`와 모델 노트북의 `T_OUT`값 일치시킴
+2. ~~`gnn_config.json`의 `output_steps`와 모델 노트북의 `T_OUT`값 일치시킴~~ → 완료 (18)
 
 ### 5-4. 구조적 개선 (장기)
 
