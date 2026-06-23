@@ -22,6 +22,10 @@ __pycache__/
 *.pyo
 .ipynb_checkpoints/
 
+# ── 비밀키/환경변수 ──────────────────────────────
+.env
+.env.*
+
 # ── OS 생성 파일 ─────────────────────────────────
 .DS_Store
 Thumbs.db
@@ -30,3 +34,5 @@ Thumbs.db
 CLAUDE.md
 
 03_GIS
+data
+*.md
