@@ -1,5 +1,8 @@
 # 도심 침수 예측 GNN (Urban Flood Prediction with GNN)
 
+> ⚠️ **상태(2026-06-24 기준)**: 이 문서는 작성 시점 기준 기록이다. **현재 프로젝트 방향·결론의 정본은 `CLAUDE.md` · `reports/progress_report.html`(§1~18) · `docs/PROGRESS_LOG.md`**. EDA 사실·전처리 방법은 유효하나, 방향은 **"GNN 침수예측 → 위험수위 분석 → 데이터 확보(고객=KICT)"**로 이동했고 **관악 침수=국지 호우 표면류**(하수 만관·하천역류 아님)로 규명됨.
+
+
 > 서울시 하수관로·도로노면 수위 센서 네트워크를 이종 그래프(Heterogeneous Graph)로 모델링하여 도로 침수를 최대 180분 전에 예측하는 GNN 비교 실험 프로젝트
 
 ---
