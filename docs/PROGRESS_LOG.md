@@ -96,7 +96,8 @@
 
 ### C. 하수 수위 GNN — 관악 (06_gnn 01~04)
 - Phase0 베이스라인: persistence MAE 바닥. CSI(이벤트=고수위 fill≥0.5): **persistence 지배(0.64/0.35/0.18)**, 회귀 CSI≈0, 분류도 미달.
-- Phase1 GIS 유향그래프 OK(21-0008=8상류 합류점). Phase2 상류전파(GNN근사): 자기이력 대비 +0.01~0.035뿐. → **관악 데이터로 CSI에서 persistence 넘는 모델(GNN포함) 불가**(전파할 사건 없음=데이터 한계).
+- Phase1 GIS 유향그래프 OK(21-0008=8상류 합류점). Phase2 상류전파(GNN**근사**=손피처+GBM): 자기이력 대비 +0.01~0.035뿐.
+- **Phase3 실제 시공간 GNN(`06_spatiotemporal_gnn`, torch+GPU, GRU+유향GraphSAGE+ablation, 시드3, 위험수위 fill≥0.5)**: persistence 0.72/0.57/0.51 ≫ GNN-off 0.39/0.29/0.25 > GNN-on 0.17/0.15/0.08. **실제 GNN도 persistence 못 넘고, 그래프(on)가 그래프없음(off)보다 더 나쁨**(관악엔 전파할 신호 없어 유향전파가 노이즈만 추가). → 근사 결과를 실제 GNN이 재확인. = **데이터 한계**(모델 한계 아님). 단 파이프라인 완성=레이더 꽂으면 즉시 재측정.
 - ★ **관악 침수≠하수만관**: 도로침수±1h 하수 max fill 0.13.
 
 ### D. 위험수위 재정의 + 서울 전역 예측 (03_surcharge, 06_gnn 05·07)
