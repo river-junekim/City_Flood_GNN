@@ -18,6 +18,7 @@
 | `correlation_road_sewer` | 도로↔하수 상관·선후(결합 약함 corr~0.05 확인) |
 | `label_quality_audit` | 도로 침수 라벨 진위(93% 아티팩트) → `road_flood_sensor_trust` |
 | `recurrent_flood_report` | 상습 침수지점 리포트 |
+| `flood_event_catalog` | 하수 다중센서 동시반응 침수 사건 카탈로그(2022~2025, fill≥0.6+±90분 병합) → `flood_event_catalog` |
 
 ## 03_surcharge — 하수 만관(surcharge) 가설 검증
 | 노트북 | 내용 |

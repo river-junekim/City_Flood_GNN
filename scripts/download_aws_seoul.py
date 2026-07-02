@@ -87,14 +87,14 @@ def fetch_window(session, key, tm1, tm2, keep_stn, retries=3):
 RAIN_FEATURES = "dataset/processed/eda_based/rain_features_10min.parquet"
 
 def rainy_window_starts(t0, t1):
-    """공공 강우로 '비 온 3h창' 시작시각 집합을 만든다. 공공 강우 커버리지 밖 기간은
-    필터 못 하므로 전부 받도록 None 처리(cover_end 이후는 무조건 fetch)."""
+    """공공 강우로 '비 온 3h창' 시작시각 집합을 만든다. 공공 강우 커버리지 밖 기간(이전·이후 모두)은
+    필터 못 하므로 전부 받도록 처리(cover_start~cover_end 밖은 무조건 fetch)."""
     r = pd.read_parquet(RAIN_FEATURES, columns=["timestamp", "rainfall_mm", "rain_6h_sum"])
-    cover_end = r["timestamp"].max()
+    cover_start, cover_end = r["timestamp"].min(), r["timestamp"].max()
     r = r[(r["timestamp"] >= t0) & (r["timestamp"] < t1)]
     rr = r[(r["rainfall_mm"] > 0) | (r["rain_6h_sum"] > 0)]
     starts = set(pd.to_datetime(rr["timestamp"]).dt.floor(f"{WINDOW_MIN}min"))
-    return starts, cover_end
+    return starts, cover_start, cover_end
 
 
 def main():
@@ -106,10 +106,10 @@ def main():
     t0 = datetime.strptime(start, "%Y%m%d%H%M")
     t1 = datetime.strptime(end,   "%Y%m%d%H%M")
     keep_stn = seoul_stations()
-    rainy, cover_end = rainy_window_starts(t0, t1)   # 강우창 타겟
+    rainy, cover_start, cover_end = rainy_window_starts(t0, t1)   # 강우창 타겟
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     session = requests.Session()
-    print(f"서울 {len(keep_stn)}지점 | {start}~{end} | {WINDOW_MIN}분 창 | 강우창 {len(rainy)}개(커버 {cover_end:%Y-%m-%d})")
+    print(f"서울 {len(keep_stn)}지점 | {start}~{end} | {WINDOW_MIN}분 창 | 강우창 {len(rainy)}개(커버 {cover_start:%Y-%m-%d}~{cover_end:%Y-%m-%d})")
     cur = t0; n_done = n_skip = n_dry = 0; tstart = time.time()
     while cur < t1:
         win_end = min(cur + timedelta(minutes=WINDOW_MIN), t1)
@@ -119,8 +119,9 @@ def main():
         fp = OUT_DIR / f"aws_{tm1}.parquet"
         if fp.exists():
             n_skip += 1; cur = win_end; continue
-        # 강우 커버리지 안에서 비 안 온 창은 건너뜀(마른 시간 = 강우 0, 받을 필요 없음)
-        if cur <= cover_end and pd.Timestamp(cur) not in rainy:
+        # 강우 커버리지 안에서 비 안 온 창은 건너뜀(마른 시간 = 강우 0, 받을 필요 없음). 커버리지 밖(이전·이후)은 전부 받음
+        in_coverage = cover_start <= pd.Timestamp(cur) <= cover_end
+        if in_coverage and pd.Timestamp(cur) not in rainy:
             n_dry += 1; cur = win_end; continue
         df = fetch_window(session, key, tm1, tm2, keep_stn)
         if df is None:

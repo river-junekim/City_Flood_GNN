@@ -42,11 +42,13 @@
 - 보류: 옛 figure 6개(03_surcharge·04) 한글화(첫셀 os.chdir 추가 후 재실행·재임베드).
 
 ## 4. 데이터·파일 핵심
-- **정제 산출물** `dataset/processed/eda_based/`: `road_cleaned`(1분), `road_panel_10min`(5.69M, 라벨/split/차분), `sewer_features_10min`(51.6M, **capacity교정·fill_rate·surcharge**), `*_sensor_quality`, `road_flood_sensor_trust`(판정_final), `recurrent_flood_report`, `sewer_capacity_v2`.
+- **정제 산출물** `dataset/processed/eda_based/`: `road_cleaned`(1분), `road_panel_10min`(5.69M, 라벨/split/차분), `sewer_features_10min`(51.6M, **capacity교정·fill_rate·surcharge·is_dropout**), `*_sensor_quality`, `road_flood_sensor_trust`(판정_final), `recurrent_flood_report`, `sewer_capacity_v2`.
+- **드롭아웃 정정(2026-07-02)**: 하수 센서 일부가 고수위 중 순간 바닥값(0.01m) 급락→복귀(센서 드롭아웃, 4,356건·10,977bins·0.021%·100/485센서). 고수위 사이 낀 바닥값 런만 선형보간+`is_dropout` 플래그(원자료 1분 보존). 노트북 `01_preprocessing/sewer_dropout_clean.ipynb`. 예: 21-0005 2022-08-08 21:00~21:30.
 - **추가 산출물**: `sewer_capacity_reliability`(신뢰455/datum불일치29), `sewer_surcharge_audit`(최종판정·lift_aws), `surcharge_road_pairing`·`road_surcharge_zone_pairing`(매칭), `gnn_data_needs`.
 - **노트북**(`notebooks/`, 폴더정리·README有, ★루트에서 실행): `01_preprocessing`·`02_analysis`·`03_surcharge`(만관 검증 5종)·`04_feasibility`·`05_modeling`·`06_gnn`(하수 수위 GNN 진행). 스크립트는 `scripts/`(다운로드·빌드·`demo_client.py`), 실행 `python scripts/xxx.py`.
 - **제원표(원천)**: `dataset/processed/서울시 수위계(하수관로/도로) 제원표_20260310.xlsx` — 관규격·배수구역이 정제데이터와 100% 일치(우리 capacity·좌표 원천).
 - **GIS**: `03_GIS/관악구_하수관로_맨홀_shp/`(sb001관로·sb101맨홀·sb503물받이·sb104토구, EPSG:5181, 속성 cp949) · `03_GIS/레이더격자_shp/`(1km) · `derived/`. ⚠️GIS 내용 영구메모리 금지.
+- **침수흔적도(ground-truth, 2026-07-02 확보)**: `03_GIS/침수흔적도_shp/2022_서울시_침수흔적도.zip`(서울 열린데이터광장 OA-15636, 19,881폴리곤, EPSG:5179, 속성=구·침수심·발생일자/시각·원인·주소·면적). 대조=`02_analysis/flood_trace_crosscheck.ipynb`: 2022-08-08 관악 2,120폴리곤, **동시반응 7센서 전부 침수구역 위/인접(≤102m)→ground-truth 검증완료**. 나머지 연도(seq는 OA-15636 downloadFile 참조: 2022=30) 추가 확보 가능.
 - **AWS 강우**: `download_aws_seoul.py` → `data/aws_seoul/win/` → `build_aws_rain.py` → `data/aws_seoul_rain_10min.parquet`(2024-06~2025-09, 43지점). 매핑 `aws_sewer_mapping_v2`.
 - **보고서**: `reports/progress_report.html`(§1~11 자체완결) · `reports/figures_sewer/`·`reports/figures_demo/`.
 - ⚠️ `*.py`·`data/`·`*.png`·`CLAUDE.md`·`.env`는 **gitignore**(커밋 안 됨).
