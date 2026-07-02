@@ -91,7 +91,7 @@ ul{margin:6px 0}
 """
 
 
-def build(hydro_png, map_png):
+def build(hydro_png, map_png, timing_png):
     ev_rows = "".join(f"<tr><td>{d}</td><td>{n}</td><td>{r}</td><td>{v}</td></tr>" for d, n, r, v in [
         ("2025-05-16", "5", "36.0mm", "✅ 강우 15:40 급증 → 센서 15:54~16:07 반응"),
         ("2025-08-30", "3", "41.5mm", "✅"),
@@ -142,8 +142,10 @@ def build(hydro_png, map_png):
 <li>관악 2022-08-08 침수 폴리곤 <b>2,120개</b>(총 105만 m²) — 원인에 <b>"배수용량초과"(하수 만관/월류) 1,002개</b> 포함(우리 하수센서가 포착할 침수 유형과 일치).</li>
 <li><b>동시반응 7센서 전부가 실제 침수 폴리곤 위/인접(최근접 ≤102m·중앙값 0m)</b>, 300m내 침수 폴리곤 39~201개.</li>
 <li>→ <b>센서 신호(동시반응) = 실제 침수 위치·날짜(2022-08-08)와 일치</b>. 하수 다중센서 사건이 <b>검증된 침수 라벨</b>임이 공식 ground-truth로 확인됨.</li>
+<li><b>시간축 정합</b>: 흔적도 기재시각(시각기재 폴리곤 1,115개)이 <b>저녁 20~23시에 72% 집중</b> → 센서 피크시각(20:50~23:00)과 일치. <b>공간+시간 양면 검증</b>.</li>
 </ul>
 {embed(map_png, "관악 2022-08-08 침수흔적도(파랑) × 하수 7센서(빨간 별) — 7센서 전부 실제 침수구역 위/인접. 출처: 서울시 침수흔적도 2022(서울 열린데이터광장 OA-15636, 공공누리 1유형). 노트북 flood_trace_crosscheck.")}
+{embed(timing_png, "침수흔적 기재시각(파랑 막대) vs 센서 피크시각(빨간 선) — 저녁 21~23시 집중이 센서 피크와 일치(시간축 정합). 노트북 floodtrace_timing_align.")}
 </div>
 
 <h2>3. <span class="star">★</span> 강우 교차검증 — 확인 가능한 다중센서 사건은 전부 강우와 일치</h2>
@@ -202,8 +204,9 @@ def build(hydro_png, map_png):
 
 
 MAP_PNG = f"{FD}/floodtrace_2022_gwanak.png"  # flood_trace_crosscheck 노트북 산출
+TIMING_PNG = f"{FD}/floodtrace_timing_2022.png"  # floodtrace_timing_align 노트북 산출
 
 if __name__ == "__main__":
     hydro = fig_2022_hydrograph()
-    open(OUT, "w").write(build(hydro, MAP_PNG))
+    open(OUT, "w").write(build(hydro, MAP_PNG, TIMING_PNG))
     print("작성:", OUT)
