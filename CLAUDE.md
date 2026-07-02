@@ -1,12 +1,13 @@
 # 도심 침수 예측 — Claude 작업 가이드
 
-> 작업 디렉토리: `/home/namjun/city_flood` · 마지막 업데이트 2026-06-24
+> 작업 디렉토리: `/home/namjun/city_flood` · 마지막 업데이트 2026-07-02
 > **상세 일자별 진행로그 → `docs/PROGRESS_LOG.md`** · 레거시 GNN 5모델 프로젝트 → `docs/LEGACY_GNN_PROJECT.md`
 > 설계 문서 → `docs/TIMESERIES_PREPROCESSING_DESIGN.md` ★, `docs/DATA_QUALITY_FINDINGS.md` 등
 
 ## 0. 한 줄 요약
 **★범위 확정(2026-06-24): 모든 기준=관악구. 서울 전역 폐기**(서울 결과는 맥락 참고만) [[gwanak-only-scope]].
 **원 목표=관악구 배수지역 침수예측 GNN**(관악 데이터 부족→서울 확장했으나 폐기). 서울 **도로노면(123)·하수관로(484) 수위 센서** 사용. EDA에서 **침수 양성을 만드는 도로 센서의 ~93%가 아티팩트형**(비영값 고착·사각파·겨울지배; *마른 도로 0 지배는 정상*)·**관악 침수≠하수만관(표면류형)** 판명 → **현재 데이터로 침수예측 supervised 학습 불가**(깨끗한 양성 부족 + 희소 양성 오염). 단 **03_GIS 관악 관망 토폴로지 확보** → 라벨 불필요한 **하수 수위 예측 GNN**으로 진행 중.
+**★★전환(2026-07-02): 라벨 병목 해소 개시.** 재조사 결과 **하수 다중센서가 실제 침수를 포착**하고 있었고("양성 0"의 원인은 센서결함이 아니라 관측창 한계=도로센서 2024-06설치·AWS강우 여름만), **서울시 침수흔적도(ground-truth) 확보→2022-08-08 하수 7센서가 실제 침수구역과 공간(≤102m)+시간(21~23시) 양면 일치 검증**. **침수흔적도 폴리곤→GNN 맨홀 노드 13,272 공간조인으로 노드 침수라벨 생성**. 상세=`docs/REPORT_2차_검증발견.md`·`reports/report_2nd_findings.html`. 남은 입력 병목=레이더 강우.
 
 ## 1. 작업 규율 (반드시 준수)
 - **추측·단정 금지** — 임계·관계는 데이터로 검증해 정한다. **과장 금지** — 확정 vs 미확정 구분해 보고.
@@ -33,13 +34,20 @@
 - **onset 심화(06_gnn 07)**: 진입(현재 비위험→위험) 조기예측. persistence 구조적 0인데 모델은 **0.06~0.09**(약신호 존재하나 포착10%·오경보80% 실무미달). → **의미있는 조기경보엔 공간·이동 강우(레이더) 필수**. 이 값이 레이더가 넘어야 할 기준선.
 
 ## 3. 현재 방향 / 다음 작업
-**★GNN 구조 확정(2026-06-24 지시): 노드=맨홀(관악 12,184), 엣지=상류→하류 유향 관거(관저고 기반)** = 맨홀-노드 하수 라우팅 GNN. 17-센서 그래프는 stopgap. 관측은 수위계 snap 맨홀만(13→신설29 확보시 42, semi-supervised), 노드입력=맨홀별 유입(강우×집수면적)→DEM·레이더 필요. [[gnn-feasibility-verdict]]
-**결론: 현 데이터(국지강우+자기이력) 모델링 한계 확정 → B(데이터 확보)가 정답.** 도로 침수 supervised는 라벨 확보 전까지 보류.
-- ⏸ **2026-06-25 예정**: 레이더 강우(HSR/HFC) 확보 — 오늘(06-24) API허브 당일 용량 초과로 보류. 출처=기상청 포털(data.kma.go.kr)/API허브(apihub.kma.go.kr), 03_GIS에 1km 격자 shp 보유. 목적=리드타임 확보(onset CSI 0.06~0.09 상회) + 미검증 위험수위 188 검증. [[todo-radar-rain-acquisition]]
-1. **레이더 강우**(최우선) → 격자↔센서 매핑 → onset/위험수위 예측 재측정(레이더 vs persistence).
-2. **침수 라벨**(침수흔적도·120/119) → 하수 대리지표 탈피, 실제 침수 supervised.
-3. **하천 수위**(한강홍수통제소, 도림천·안양천) → 관악 하천역류 검증. **DEM** → 저지대 표면류 그래프.
-- 보류: 옛 figure 6개(03_surcharge·04) 한글화(첫셀 os.chdir 추가 후 재실행·재임베드).
+**★GNN 구조 확정(2026-06-24 지시): 노드=맨홀(관악 12,184), 엣지=상류→하류 유향 관거(관저고 기반)** = 맨홀-노드 하수 라우팅 GNN. 17-센서 그래프는 stopgap. 관측은 수위계 snap 맨홀만(13→신설29 확보시 42, semi-supervised). [[gnn-feasibility-verdict]]
+
+### 2026-07-02 완료 (라벨 확보 단계)
+- **하수 드롭아웃 전처리 규칙화**: 고수위→바닥값(0.01m)→복귀=센서 드롭아웃(4,356건·10,977bins·0.021%·100/485센서) 감지·선형보간·`is_dropout` 플래그(원자료 1분 보존). 노트북 `01_preprocessing/sewer_dropout_clean`·튜닝 `sewer_dropout_tuning`(임계 FLOOR0.02·HIGH0.3·MAXLEN12).
+- **침수흔적도(ground-truth) 확보**: OA-15636 **2010~2025 전 연도** zip(`03_GIS/침수흔적도_shp/`). 관악 폴리곤=2010(1227)·2011(1686)·2022(3572)·2023(5)·2024(1)·2025(0=관악 미해당). 2010·2011은 센서 이전이나 저지대 노드라벨로 가치. 2025는 스키마 상이(GU_NAM 없이 ADM_CD).
+- **2022-08-08 검증**: 하수 7센서(21-0001~7)가 실제 침수구역과 **공간(≤102m·중앙0m) + 시간(흔적도 저녁20~23시 72%↔센서피크 20:50~23:00) 양면 일치**. 원인 "배수용량초과"=하수만관 1002폴리곤. 노트북 `02_analysis/flood_trace_crosscheck`·`floodtrace_timing_align`. 카탈로그 E01 "흔적도 검증(공간+시각)" 승격.
+- **GNN 노드 침수라벨**: 흔적도 폴리곤×맨홀노드 13,272 공간조인 → `gnn_manhole_flood_labels_2022.parquet`(2022-08-08 내부1229·≤50m 6709·침수심·원인, 센서42노드 전부라벨). 노트북 `02_analysis/floodtrace_manhole_join`. → 라벨병목 해소, 하수 라우팅 GNN에 실제 노드정답 확보.
+
+### 다음
+1. **레이더 강우**(입력 병목·최우선) → 격자↔노드 매핑 → onset/위험수위/노드분류 재측정. 출처=기상청 포털(data.kma.go.kr)/API허브(apihub.kma.go.kr), 03_GIS 1km 격자 shp. onset CSI 0.06~0.09가 넘어야 할 기준선. [[todo-radar-rain-acquisition]]
+2. **과거 강우(2022·2023)** — AWS 2022 여름 받아 E01 강우 직접확인(현재 외부기록 141.5mm로만 뒷받침). KMA 일일용량 제한으로 분할·재개(2026-07-02 2023-02-23까지 받고 403 중단, 2022는 미착수). `python scripts/download_aws_seoul.py 202208010000 202209010000`.
+3. **전 기간 노드 라벨링** — 2010·2011 관악 흔적도로 저지대 정적라벨 추가(다운로드 무관·즉시 가능).
+4. **1차/2차 보고서 병합 결정**(미정) · **하천 수위**(한강홍수통제소, 도림천) 하천역류 재검증 · **DEM** 집수면적/표면류.
+- 보류: 옛 figure 6개(03_surcharge·04) 한글화.
 
 ## 4. 데이터·파일 핵심
 - **정제 산출물** `dataset/processed/eda_based/`: `road_cleaned`(1분), `road_panel_10min`(5.69M, 라벨/split/차분), `sewer_features_10min`(51.6M, **capacity교정·fill_rate·surcharge·is_dropout**), `*_sensor_quality`, `road_flood_sensor_trust`(판정_final), `recurrent_flood_report`, `sewer_capacity_v2`.
@@ -48,10 +56,11 @@
 - **노트북**(`notebooks/`, 폴더정리·README有, ★루트에서 실행): `01_preprocessing`·`02_analysis`·`03_surcharge`(만관 검증 5종)·`04_feasibility`·`05_modeling`·`06_gnn`(하수 수위 GNN 진행). 스크립트는 `scripts/`(다운로드·빌드·`demo_client.py`), 실행 `python scripts/xxx.py`.
 - **제원표(원천)**: `dataset/processed/서울시 수위계(하수관로/도로) 제원표_20260310.xlsx` — 관규격·배수구역이 정제데이터와 100% 일치(우리 capacity·좌표 원천).
 - **GIS**: `03_GIS/관악구_하수관로_맨홀_shp/`(sb001관로·sb101맨홀·sb503물받이·sb104토구, EPSG:5181, 속성 cp949) · `03_GIS/레이더격자_shp/`(1km) · `derived/`. ⚠️GIS 내용 영구메모리 금지.
-- **침수흔적도(ground-truth, 2026-07-02 확보)**: `03_GIS/침수흔적도_shp/2022_서울시_침수흔적도.zip`(서울 열린데이터광장 OA-15636, 19,881폴리곤, EPSG:5179, 속성=구·침수심·발생일자/시각·원인·주소·면적). 대조=`02_analysis/flood_trace_crosscheck.ipynb`: 2022-08-08 관악 2,120폴리곤, **동시반응 7센서 전부 침수구역 위/인접(≤102m)→ground-truth 검증완료**. 나머지 연도(seq는 OA-15636 downloadFile 참조: 2022=30) 추가 확보 가능.
-- **AWS 강우**: `download_aws_seoul.py` → `data/aws_seoul/win/` → `build_aws_rain.py` → `data/aws_seoul_rain_10min.parquet`(2024-06~2025-09, 43지점). 매핑 `aws_sewer_mapping_v2`.
-- **보고서**: `reports/progress_report.html`(§1~11 자체완결) · `reports/figures_sewer/`·`reports/figures_demo/`.
-- ⚠️ `*.py`·`data/`·`*.png`·`CLAUDE.md`·`.env`는 **gitignore**(커밋 안 됨).
+- **침수흔적도(ground-truth, 2026-07-02 확보)**: `03_GIS/침수흔적도_shp/{연도}_서울시_침수흔적도.zip` — **2010~2025 전 연도**(2015·2021 침수없음 제외). OA-15636, EPSG:5179, 속성=구(GU_NAM)·침수심(F_SHIM)·발생일자/시각(F_SAT_YMD/TM)·원인(F_RSN_DTL)·주소·면적. ⚠️2025는 스키마 상이(GU_NAM 없이 ADM_CD·PNU). 관악 폴리곤=2010(1227)·2011(1686)·2022(3572)·2023(5)·2024(1)·2025(0). 관악필터본 `03_GIS/derived/침수흔적도_2022_관악.gpkg`. 재다운로드 seq: 2010~2020=4~13(2015·2021없음), 2022=30·2023=31·2024=32·2025=103, POST `infId=OA-15636&seq=NN&infSeq=1` → `datafile.seoul.go.kr/bigfile/iot/inf/nio_download.do`.
+- **GNN 노드 침수라벨(2026-07-02)**: `dataset/processed/eda_based/gnn_manhole_flood_labels_2022.parquet`(13,272노드, flood_in/25m/50m·depth·cause, 2022-08-08+2022전체) · `floodtrace_sensor_crosscheck_2022.csv` · 사건 카탈로그 `flood_event_catalog.parquet`(8사건, E01 흔적도검증). 노트북 `02_analysis/flood_trace_crosscheck·floodtrace_manhole_join·floodtrace_timing_align·flood_event_catalog`.
+- **AWS 강우**: `download_aws_seoul.py` → `data/aws_seoul/win/` → `build_aws_rain.py` → `data/aws_seoul_rain_10min.parquet`(빌드본=2024-06~2025-09, 43지점). 매핑 `aws_sewer_mapping_v2`. ※win/에 2023-01~02-23 추가수집분 있음(403 중단, build 재실행 전). 2022는 미수집. 커버리지 밖 기간은 전량 fetch(스크립트 버그픽스 반영).
+- **보고서**: `reports/progress_report.html`(§1~11 자체완결) · **`reports/report_2nd_findings.html`(2차 검증발견, 2026-07-02)** · `reports/data_request_report.html`(KICT 요청) · `reports/feedback_report.html`(1차 피드백) · `reports/figures_sewer/`·`reports/figures_demo/`.
+- ⚠️ **gitignore 변경(2026-07-02, private repo)**: 이제 `scripts/*.py`·`data/`·`*.png`·`CLAUDE.md`·`03_GIS/`가 **추적됨**(커밋됨). 여전히 제외=**`.env`(비밀키)·`dataset/`(12GB·100MB초과)·100MB초과 dbf 2개**. AWS win 파일은 다운로드 진행 중이라 수동 선별 커밋.
 
 ## 5. 자주 쓰는 명령
 ```bash
